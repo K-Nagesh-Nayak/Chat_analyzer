@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Chat Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            padding: 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .upload-section {
+            padding: 40px;
+            text-align: center;
+            background: rgba(37, 211, 102, 0.05);
+            border-bottom: 1px solid rgba(37, 211, 102, 0.1);
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            padding: 15px 30px;
+            border-radius: 50px;
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+        }
+        
+        .file-input-wrapper:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4);
+        }
+        
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 193, 7, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #FFC107;
+        }
+        
+        .instructions h3 {
+            color: #FF8F00;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ol {
+            text-align: left;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .results {
+            padding: 40px;
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #25D366;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card h3 {
+            color: #128C7E;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .response-times, .top-words, .top-emojis {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .user-response {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border-left: 4px solid #25D366;
+        }
+        
+        .word-cloud, .emoji-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .word-item, .emoji-item {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.9em;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+        }
+        
+        .emoji-item {
+            font-size: 1.2em;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .error {
+            display: none;
+            background: #ffe6e6;
+            color: #cc0000;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #cc0000;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            transition: all 0.3s ease;
+            margin: 20px auto;
+            display: block;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chart-container canvas {
+            max-height: 400px;
+        }
+        
+        .per-person-section {
+            margin-top: 30px;
+        }
+        
+        .person-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #25D366;
+        }
+        
+        .person-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .person-name {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #128C7E;
+        }
+        
+        .person-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(37, 211, 102, 0.1);
+            border-radius: 10px;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #128C7E;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .person-words, .person-emojis {
+            margin-top: 15px;
+        }
+        
+        .section-title {
+            font-weight: 600;
+            color: #128C7E;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .person-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 WhatsApp Chat Analyzer</h1>
+            <p>Analyze response times, popular words, and emoji usage patterns</p>
+        </div>
+        
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="chatFile" class="file-input" accept=".txt">
+                📁 Upload WhatsApp Chat Export
+            </div>
+            
+            <div class="instructions">
+                <h3>How to export your WhatsApp chat:</h3>
+                <ol>
+                    <li>Open WhatsApp and go to the chat you want to analyze</li>
+                    <li>Tap the chat name/group name at the top</li>
+                    <li>Scroll down and tap "Export Chat"</li>
+                    <li>Choose "Without Media"</li>
+                    <li>Upload the .txt file here</li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <p>🔄 Analyzing your chat... This may take a moment.</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="results" id="results">
+            <button class="download-btn" id="downloadBtn">📄 Download Results as PDF</button>
+            
+            <div id="reportContent">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>📊 Chat Statistics</h3>
+                        <div id="chatStats"></div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <h3>⏱️ Average Response Times</h3>
+                        <div id="responseStats"></div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>📈 Message Frequency by User</h3>
+                    <canvas id="messageChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>⏰ Response Time Comparison</h3>
+                    <canvas id="responseChart"></canvas>
+                </div>
+                
+                <div class="top-words">
+                    <h3>🔤 Most Used Words (Overall)</h3>
+                    <div class="word-cloud" id="wordCloud"></div>
+                </div>
+                
+                <div class="top-emojis">
+                    <h3>😊 Most Used Emojis (Overall)</h3>
+                    <div class="emoji-cloud" id="emojiCloud"></div>
+                </div>
+                
+                <div class="per-person-section">
+                    <h2 style="color: #128C7E; margin-bottom: 20px; text-align: center;">👥 Per Person Analysis</h2>
+                    <div id="perPersonAnalysis"></div>
+                </div>
+                
+                <div class="response-times">
+                    <h3>⏰ Detailed Response Times by User</h3>
+                    <div id="userResponseTimes"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class WhatsAppAnalyzer {
+            constructor() {
+                this.messages = [];
+                this.users = new Set();
+                this.charts = {};
+                this.init();
+            }
+            
+            init() {
+                document.getElementById('chatFile').addEventListener('change', this.handleFileUpload.bind(this));
+                document.getElementById('downloadBtn').addEventListener('click', this.downloadPDF.bind(this));
+            }
+            
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                this.showLoading(true);
+                this.hideError();
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        this.parseChat(e.target.result);
+                        this.analyzeChat();
+                    } catch (error) {
+                        this.showError('Error parsing chat file. Please make sure it\'s a valid WhatsApp export.');
+                        console.error(error);
+                    } finally {
+                        this.showLoading(false);
+                    }
+                };
+                reader.readAsText(file);
+            }
+            
+            parseChat(content) {
+                const lines = content.split('\n').filter(line => line.trim());
+                this.messages = [];
+                this.users = new Set();
+                
+                // Different WhatsApp export formats
+                const patterns = [
+                    /^(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[APap][Mm])?)\s*-\s*([^:]+):\s*(.+)$/,
+                    /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[APap][Mm])?)\]\s*([^:]+):\s*(.+)$/,
+                    /^(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[APap][Mm])?)\s*-\s*([^:]+):\s*(.*)$/
+                ];
+                
+                for (const line of lines) {
+                    let match = null;
+                    for (const pattern of patterns) {
+                        match = line.match(pattern);
+                        if (match) break;
+                    }
+                    
+                    if (match) {
+                        const [, date, time, user, message] = match;
+                        
+                        // Skip system messages
+                        if (message.includes('Messages and calls are end-to-end encrypted') ||
+                            message.includes('changed the group description') ||
+                            message.includes('added') || message.includes('left') ||
+                            message.includes('changed this group\'s icon') ||
+                            message.includes('This message was deleted') ||
+                            message.includes('<Media omitted>')) {
+                            continue;
+                        }
+                        
+                        const parsedDate = this.parseDateTime(date, time);
+                        if (parsedDate) {
+                            this.messages.push({
+                                date: parsedDate,
+                                user: user.trim(),
+                                message: message.trim()
+                            });
+                            this.users.add(user.trim());
+                        }
+                    }
+                }
+                
+                if (this.messages.length === 0) {
+                    throw new Error('No valid messages found in the file');
+                }
+                
+                // Sort messages by date
+                this.messages.sort((a, b) => a.date - b.date);
+            }
+            
+            parseDateTime(dateStr, timeStr) {
+                try {
+                    // Handle different date formats
+                    let [day, month, year] = dateStr.split('/');
+                    
+                    // Convert 2-digit year to 4-digit
+                    if (year.length === 2) {
+                        year = parseInt(year) < 50 ? '20' + year : '19' + year;
+                    }
+                    
+                    // Handle 12-hour format
+                    let [hours, minutes] = timeStr.split(':');
+                    const isPM = timeStr.toLowerCase().includes('pm');
+                    const isAM = timeStr.toLowerCase().includes('am');
+                    
+                    hours = parseInt(hours);
+                    if (isPM && hours !== 12) hours += 12;
+                    if (isAM && hours === 12) hours = 0;
+                    
+                    return new Date(year, month - 1, day, hours, parseInt(minutes) || 0);
+                } catch (error) {
+                    return null;
+                }
+            }
+            
+            analyzeChat() {
+                const analysis = {
+                    totalMessages: this.messages.length,
+                    totalUsers: this.users.size,
+                    responseTimes: this.calculateResponseTimes(),
+                    wordFrequency: this.analyzeWords(),
+                    emojiFrequency: this.analyzeEmojis(),
+                    userStats: this.getUserStats(),
+                    perPersonWords: this.analyzeWordsPerPerson(),
+                    perPersonEmojis: this.analyzeEmojisPerPerson()
+                };
+                
+                this.displayResults(analysis);
+                this.createCharts(analysis);
+            }
+            
+            calculateResponseTimes() {
+                const responseTimes = {};
+                
+                for (let i = 1; i < this.messages.length; i++) {
+                    const currentMsg = this.messages[i];
+                    const previousMsg = this.messages[i - 1];
+                    
+                    if (currentMsg.user !== previousMsg.user) {
+                        const timeDiff = currentMsg.date - previousMsg.date;
+                        const minutes = timeDiff / (1000 * 60);
+                        
+                        // Only count responses within 24 hours
+                        if (minutes <= 1440) {
+                            if (!responseTimes[currentMsg.user]) {
+                                responseTimes[currentMsg.user] = [];
+                            }
+                            responseTimes[currentMsg.user].push(minutes);
+                        }
+                    }
+                }
+                
+                // Calculate averages
+                const avgResponseTimes = {};
+                for (const user in responseTimes) {
+                    const times = responseTimes[user];
+                    const avg = times.reduce((sum, time) => sum + time, 0) / times.length;
+                    avgResponseTimes[user] = {
+                        average: avg,
+                        count: times.length,
+                        median: this.getMedian(times),
+                        fastest: Math.min(...times),
+                        slowest: Math.max(...times)
+                    };
+                }
+                
+                return avgResponseTimes;
+            }
+            
+            analyzeWords() {
+                const wordCount = {};
+                const stopWords = new Set(['the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'but', 'in', 'with', 'to', 'for', 'of', 'as', 'by', 'that', 'this', 'it', 'i', 'you', 'we', 'they', 'he', 'she', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'am', 'are', 'was', 'were', 'get', 'got', 'go', 'went', 'come', 'came', 'see', 'saw', 'know', 'knew', 'think', 'thought', 'say', 'said', 'tell', 'told', 'give', 'gave', 'take', 'took', 'make', 'made']);
+                
+                for (const msg of this.messages) {
+                    const words = msg.message.toLowerCase()
+                        .replace(/[^\w\s]/g, ' ')
+                        .split(/\s+/)
+                        .filter(word => word.length > 2 && !stopWords.has(word));
+                    
+                    for (const word of words) {
+                        wordCount[word] = (wordCount[word] || 0) + 1;
+                    }
+                }
+                
+                return Object.entries(wordCount)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 20);
+            }
+            
+            analyzeEmojis() {
+                const emojiCount = {};
+                const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+                
+                for (const msg of this.messages) {
+                    const emojis = msg.message.match(emojiRegex) || [];
+                    for (const emoji of emojis) {
+                        emojiCount[emoji] = (emojiCount[emoji] || 0) + 1;
+                    }
+                }
+                
+                return Object.entries(emojiCount)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 15);
+            }
+            
+            analyzeWordsPerPerson() {
+                const perPersonWords = {};
+                const stopWords = new Set(['the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'but', 'in', 'with', 'to', 'for', 'of', 'as', 'by', 'that', 'this', 'it', 'i', 'you', 'we', 'they', 'he', 'she', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'am', 'are', 'was', 'were', 'get', 'got', 'go', 'went', 'come', 'came', 'see', 'saw', 'know', 'knew', 'think', 'thought', 'say', 'said', 'tell', 'told', 'give', 'gave', 'take', 'took', 'make', 'made']);
+                
+                for (const user of this.users) {
+                    const userMessages = this.messages.filter(msg => msg.user === user);
+                    const wordCount = {};
+                    
+                    for (const msg of userMessages) {
+                        const words = msg.message.toLowerCase()
+                            .replace(/[^\w\s]/g, ' ')
+                            .split(/\s+/)
+                            .filter(word => word.length > 2 && !stopWords.has(word));
+                        
+                        for (const word of words) {
+                            wordCount[word] = (wordCount[word] || 0) + 1;
+                        }
+                    }
+                    
+                    perPersonWords[user] = Object.entries(wordCount)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 10);
+                }
+                
+                return perPersonWords;
+            }
+            
+            analyzeEmojisPerPerson() {
+                const perPersonEmojis = {};
+                const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+                
+                for (const user of this.users) {
+                    const userMessages = this.messages.filter(msg => msg.user === user);
+                    const emojiCount = {};
+                    
+                    for (const msg of userMessages) {
+                        const emojis = msg.message.match(emojiRegex) || [];
+                        for (const emoji of emojis) {
+                            emojiCount[emoji] = (emojiCount[emoji] || 0) + 1;
+                        }
+                    }
+                    
+                    perPersonEmojis[user] = Object.entries(emojiCount)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 10);
+                }
+                
+                return perPersonEmojis;
+            }
+            
+            getUserStats() {
+                const stats = {};
+                for (const user of this.users) {
+                    const userMessages = this.messages.filter(msg => msg.user === user);
+                    const totalWords = userMessages.reduce((sum, msg) => {
+                        return sum + msg.message.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 0).length;
+                    }, 0);
+                    
+                    stats[user] = {
+                        messageCount: userMessages.length,
+                        percentage: (userMessages.length / this.messages.length * 100).toFixed(1),
+                        avgMessageLength: Math.round(userMessages.reduce((sum, msg) => sum + msg.message.length, 0) / userMessages.length),
+                        totalWords: totalWords,
+                        avgWordsPerMessage: Math.round(totalWords / userMessages.length)
+                    };
+                }
+                return stats;
+            }
+            
+            createCharts(analysis) {
+                // Destroy existing charts
+                Object.values(this.charts).forEach(chart => chart.destroy());
+                this.charts = {};
+                
+                // Message frequency chart
+                const userNames = Array.from(this.users);
+                const messageCounts = userNames.map(user => analysis.userStats[user].messageCount);
+                
+                const ctx1 = document.getElementById('messageChart').getContext('2d');
+                this.charts.messageChart = new Chart(ctx1, {
+                    type: 'bar',
+                    data: {
+                        labels: userNames,
+                        datasets: [{
+                            label: 'Messages Sent',
+                            data: messageCounts,
+                            backgroundColor: [
+                                '#25D366', '#128C7E', '#34B7F1', '#FF6B6B', 
+                                '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'
+                            ].slice(0, userNames.length),
+                            borderRadius: 8,
+                            borderSkipped: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Response time chart
+                const responseUsers = Object.keys(analysis.responseTimes);
+                const responseTimes = responseUsers.map(user => analysis.responseTimes[user].average);
+                
+                if (responseUsers.length > 0) {
+                    const ctx2 = document.getElementById('responseChart').getContext('2d');
+                    this.charts.responseChart = new Chart(ctx2, {
+                        type: 'radar',
+                        data: {
+                            labels: responseUsers,
+                            datasets: [{
+                                label: 'Average Response Time (minutes)',
+                                data: responseTimes,
+                                borderColor: '#25D366',
+                                backgroundColor: 'rgba(37, 211, 102, 0.2)',
+                                pointBackgroundColor: '#25D366',
+                                pointBorderColor: '#128C7E',
+                                pointRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value < 60 ? value + 'm' : Math.round(value/60) + 'h';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+            
+            getMedian(arr) {
+                const sorted = arr.slice().sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+            }
+            
+            formatTime(minutes) {
+                if (minutes < 1) return `${Math.round(minutes * 60)}s`;
+                if (minutes < 60) return `${Math.round(minutes)}m`;
+                if (minutes < 1440) return `${Math.round(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+                return `${Math.round(minutes / 1440)}d`;
+            }
+            
+            displayResults(analysis) {
+                // Chat Statistics
+                document.getElementById('chatStats').innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div><strong>Total Messages:</strong><br>${analysis.totalMessages.toLocaleString()}</div>
+                        <div><strong>Total Users:</strong><br>${analysis.totalUsers}</div>
+                    </div>
+                `;
+                
+                // Response Times Summary
+                const avgTimes = Object.entries(analysis.responseTimes)
+                    .map(([user, data]) => `${user}: ${this.formatTime(data.average)}`)
+                    .join('<br>');
+                document.getElementById('responseStats').innerHTML = avgTimes || 'No response time data available';
+                
+                // Top Words
+                const wordCloud = analysis.wordFrequency
+                    .map(([word, count]) => `<span class="word-item">${word} (${count})</span>`)
+                    .join('');
+                document.getElementById('wordCloud').innerHTML = wordCloud || '<p>No word data available</p>';
+                
+                // Top Emojis
+                const emojiCloud = analysis.emojiFrequency
+                    .map(([emoji, count]) => `<span class="emoji-item">${emoji} (${count})</span>`)
+                    .join('');
+                document.getElementById('emojiCloud').innerHTML = emojiCloud || '<p>No emoji data available</p>';
+                
+                // Per Person Analysis
+                const perPersonHTML = Array.from(this.users).map(user => {
+                    const stats = analysis.userStats[user];
+                    const words = analysis.perPersonWords[user] || [];
+                    const emojis = analysis.perPersonEmojis[user] || [];
+                    
+                    const wordItems = words.map(([word, count]) => 
+                        `<span class="word-item">${word} (${count})</span>`
+                    ).join('');
+                    
+                    const emojiItems = emojis.map(([emoji, count]) => 
+                        `<span class="emoji-item">${emoji} (${count})</span>`
+                    ).join('');
+                    
+                    return `
+                        <div class="person-card">
+                            <div class="person-header">
+                                <div class="person-name">👤 ${user}</div>
+                            </div>
+                            <div class="person-stats">
+                                <div class="stat-item">
+                                    <div class="stat-value">${stats.messageCount}</div>
+                                    <div class="stat-label">Messages</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">${stats.percentage}%</div>
+                                    <div class="stat-label">of Chat</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">${stats.avgMessageLength}</div>
+                                    <div class="stat-label">Avg Chars</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">${stats.totalWords}</div>
+                                    <div class="stat-label">Total Words</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value">${stats.avgWordsPerMessage}</div>
+                                    <div class="stat-label">Words/Message</div>
+                                </div>
+                            </div>
+                            <div class="person-words">
+                                <div class="section-title">🔤 Most Used Words</div>
+                                <div class="word-cloud">${wordItems || '<p>No word data available</p>'}</div>
+                            </div>
+                            <div class="person-emojis">
+                                <div class="section-title">😊 Most Used Emojis</div>
+                                <div class="emoji-cloud">${emojiItems || '<p>No emoji data available</p>'}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('perPersonAnalysis').innerHTML = perPersonHTML;
+                
+                // Detailed Response Times
+                const detailedResponse = Object.entries(analysis.responseTimes)
+                    .map(([user, data]) => `
+                        <div class="user-response">
+                            <strong>${user}</strong><br>
+                            Average: ${this.formatTime(data.average)} | 
+                            Median: ${this.formatTime(data.median)} | 
+                            Fastest: ${this.formatTime(data.fastest)} | 
+                            Slowest: ${this.formatTime(data.slowest)}<br>
+                            <small>Based on ${data.count} responses</small>
+                        </div>
+                    `)
+                    .join('');
+                document.getElementById('userResponseTimes').innerHTML = detailedResponse || '<p>No response time data available</p>';
+                
+                document.getElementById('results').classList.add('show');
+            }
+            
+            async downloadPDF() {
+                try {
+                    // Show loading state
+                    const btn = document.getElementById('downloadBtn');
+                    const originalText = btn.textContent;
+                    btn.textContent = '📄 Generating PDF...';
+                    btn.disabled = true;
+                    
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    
+                    // Get the content to convert
+                    const element = document.getElementById('reportContent');
+                    
+                    // Hide charts temporarily for better PDF generation
+                    const charts = element.querySelectorAll('canvas');
+                    charts.forEach(chart => chart.style.display = 'none');
+                    
+                    // Generate canvas from HTML
+                    const canvas = await html2canvas(element, {
+                        scale: 2,
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff',
+                        width: element.scrollWidth,
+                        height: element.scrollHeight
+                    });
+                    
+                    // Restore charts
+                    charts.forEach(chart => chart.style.display = 'block');
+                    
+                    const imgData = canvas.toDataURL('image/png');
+                    
+                    // Calculate dimensions
+                    const imgWidth = 210; // A4 width in mm
+                    const pageHeight = 297; // A4 height in mm
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    let heightLeft = imgHeight;
+                    let position = 0;
+                    
+                    // Add title page
+                    pdf.setFontSize(20);
+                    pdf.text('WhatsApp Chat Analysis Report', 105, 30, { align: 'center' });
+                    pdf.setFontSize(12);
+                    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 45, { align: 'center' });
+                    
+                    // Add first page of content
+                    pdf.addImage(imgData, 'PNG', 0, 60, imgWidth, imgHeight);
+                    heightLeft -= (pageHeight - 60);
+                    
+                    // Add additional pages if needed
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+                    }
+                    
+                    // Save the PDF
+                    pdf.save('whatsapp-chat-analysis.pdf');
+                    
+                    // Restore button
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    alert('Error generating PDF. Please try again.');
+                    
+                    // Restore button
+                    const btn = document.getElementById('downloadBtn');
+                    btn.textContent = '📄 Download Results as PDF';
+                    btn.disabled = false;
+                }
+            }
+            
+            showLoading(show) {
+                document.getElementById('loading').classList.toggle('show', show);
+            }
+            
+            hideError() {
+                document.getElementById('error').classList.remove('show');
+            }
+            
+            showError(message) {
+                document.getElementById('error').textContent = message;
+                document.getElementById('error').classList.add('show');
+            }
+        }
+        
+        // Initialize the analyzer
+        new WhatsAppAnalyzer();
+    </script>
+</body>
+</html>
